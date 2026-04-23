@@ -1106,9 +1106,8 @@ const db = firebase.database();
 window.guardarEnFirebase = function(data) {
   return db.ref('comedero/horarios/' + data.id).set(data);
 
-// 🔥 ESCUCHAR PESO EN TIEMPO REAL (VERSIÓN SEGURA)
-try {
-  db.ref('comedero/peso').on('value', snapshot => {
+db.ref('comedero/peso').on('value', snapshot => {
+  try {
     const peso = snapshot.val();
 
     if (peso !== null && !isNaN(peso)) {
@@ -1118,7 +1117,7 @@ try {
       const bar = document.getElementById('progress-bar');
       const status = document.getElementById('weight-status');
 
-      if (!weightEl || !bar || !status) return; // evita romper la app
+      if (!weightEl || !bar || !status) return;
 
       weightEl.textContent = peso;
 
@@ -1136,10 +1135,11 @@ try {
         status.textContent = Math.round(pct) + '% del objetivo';
       }
     }
-  });
-} catch (e) {
-  console.error('Error leyendo peso:', e);
-}
+  } catch (err) {
+    console.error('Error en listener de peso:', err);
+  }
+});
+  
 });
 
   
