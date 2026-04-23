@@ -800,30 +800,18 @@ let currentPet = 'Rocky';
 let currentWeight = 0;
 let targetWeight = 150;
 let eatenToday = 0;
-let isOnline = true;
+let isOnline = false;
 
-let schedules = [
-  { id: 1, time: '07:30', grams: 120, days: ['L','M','X','J','V','S','D'], enabled: true },
-  { id: 2, time: '13:00', grams: 80,  days: ['L','M','X','J','V'],         enabled: true },
-  { id: 3, time: '19:00', grams: 150, days: ['L','M','X','J','V','S','D'], enabled: false },
-];
-
-let history = [
-  { type: 'scheduled', grams: 120, time: 'Hoy 07:30', pet: 'Rocky' },
-  { type: 'manual',    grams: 50,  time: 'Hoy 10:15', pet: 'Rocky' },
-  { type: 'scheduled', grams: 80,  time: 'Ayer 13:00', pet: 'Rocky' },
-  { type: 'scheduled', grams: 120, time: 'Ayer 07:30', pet: 'Rocky' },
-  { type: 'manual',    grams: 100, time: 'Ayer 16:45', pet: 'Luna'  },
-];
+let schedules = [];
+let history = [];
 
 // ---- Init ----
 window.addEventListener('DOMContentLoaded', () => {
   renderSchedules();
   renderHistory();
   renderRecentHistory();
-  simulateWeight(0);
-  animateEaten(320);
   setupDayBtns();
+  // Firebase listeners se inician después de que Firebase esté listo
 });
 
 // ---- Pet selector ----
@@ -834,22 +822,27 @@ function selectPet(el, pet) {
   showToast('🐾 ' + pet + ' seleccionado', 'success');
 }
 
-// ---- Weight simulation ----
-function simulateWeight(target) {
+// ---- Update weight display (real data from Firebase) ----
+function updateWeightDisplay(pesoGramos) {
   const el = document.getElementById('weight-val');
   const bar = document.getElementById('progress-bar');
   const status = document.getElementById('weight-status');
-  let val = currentWeight;
-  const step = (target - val) / 20;
+
+  // Animación suave al cambiar valor
+  const prev = currentWeight;
+  const target = Math.max(0, Math.round(pesoGramos));
+  const step = (target - prev) / 15;
+  let val = prev;
+
   const interval = setInterval(() => {
     val += step;
-    if (Math.abs(val - target) < 1) { val = target; clearInterval(interval); }
+    if (Math.abs(val - target) < 0.5) { val = target; clearInterval(interval); }
     currentWeight = Math.round(val);
     el.textContent = currentWeight;
     const pct = Math.min((currentWeight / targetWeight) * 100, 100);
     bar.style.width = pct + '%';
     bar.className = 'progress-fill' + (pct >= 100 ? ' full' : pct > 70 ? '' : ' warning');
-    if (currentWeight === 0) status.textContent = 'Plato vacío — listo';
+    if (currentWeight <= 0) status.textContent = 'Plato vacío — listo';
     else if (pct >= 100) status.textContent = '¡Plato lleno!';
     else status.textContent = Math.round(pct) + '% del objetivo';
   }, 30);
@@ -908,19 +901,14 @@ function dispense(e) {
 
   // 🔥 CAMBIO VISUAL A "CARGANDO"
   btn.className = 'dispense-btn loading';
-  btn.innerHTML = '<span>Dispensando…</span>';
+  btn.innerHTML = '<span>Enviando comando…</span>';
 
-  // 🔥 ENVÍO A FIREBASE (LO MÁS IMPORTANTE)
+  // 🔥 ENVÍO A FIREBASE — el ESP32 lo lee y ejecuta
   db.ref('comedero/comando').set({
     accion: 'dispensar',
     gramos: selectedGrams,
     timestamp: Date.now()
-  });
-
-  // 🔥 SIMULACIÓN / FEEDBACK VISUAL
-  setTimeout(() => {
-    simulateWeight(selectedGrams); // puedes quitar esto cuando ya tengas HX711 real
-
+  }).then(() => {
     eatenToday += selectedGrams;
     animateEaten(eatenToday);
 
@@ -935,16 +923,18 @@ function dispense(e) {
     renderHistory();
 
     btn.className = 'dispense-btn success';
-    btn.innerHTML = '✓ ¡Listo! Se dispensaron ' + selectedGrams + 'g';
-
+    btn.innerHTML = '✓ Comando enviado · ' + selectedGrams + 'g';
     showToast('✓ ' + selectedGrams + 'g dispensados para ' + currentPet, 'success');
 
     setTimeout(() => {
       btn.className = 'dispense-btn';
       btn.innerHTML = dispenseBtnHTML(selectedGrams);
     }, 2500);
-
-  }, 1800);
+  }).catch(() => {
+    btn.className = 'dispense-btn';
+    btn.innerHTML = dispenseBtnHTML(selectedGrams);
+    showToast('Error al enviar comando', 'error');
+  });
 }
 
 // ---- Schedules ----
@@ -1106,20 +1096,7 @@ function showToast(msg, type = '') {
   t._timer = setTimeout(() => t.className = 'toast', 2800);
 }
 
-// ---- Simulate live weight changes ----
-setInterval(() => {
-  if (currentWeight > 5) {
-    currentWeight = Math.max(0, currentWeight - Math.floor(Math.random()*3));
-    document.getElementById('weight-val').textContent = currentWeight;
-    const pct = Math.min((currentWeight / targetWeight) * 100, 100);
-    const bar = document.getElementById('progress-bar');
-    bar.style.width = pct + '%';
-    bar.className = 'progress-fill' + (pct >= 100 ? ' full' : pct > 70 ? '' : ' warning');
-    const status = document.getElementById('weight-status');
-    if (currentWeight === 0) status.textContent = 'Plato vacío — listo';
-    else status.textContent = Math.round(pct) + '% del objetivo';
-  }
-}, 3000);
+// ---- (Simulación eliminada: el peso real viene del ESP32 via Firebase) ----
 </script>
 
 <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
@@ -1136,8 +1113,114 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+// ─────────────────────────────────────────────
+// 1. PESO EN TIEMPO REAL desde el ESP32 (HX711)
+//    El ESP32 debe escribir en:  comedero/peso  → número en gramos
+// ─────────────────────────────────────────────
+db.ref('comedero/peso').on('value', snap => {
+  const peso = parseFloat(snap.val());
+  if (!isNaN(peso)) {
+    updateWeightDisplay(peso);
+  }
+});
+
+// ─────────────────────────────────────────────
+// 2. ESTADO DE CONEXIÓN del ESP32
+//    El ESP32 debe escribir en:  comedero/estado/online  → true/false
+//    y actualizar  comedero/estado/ultimaVez  → timestamp
+// ─────────────────────────────────────────────
+db.ref('comedero/estado').on('value', snap => {
+  const estado = snap.val();
+  const dot = document.getElementById('conn-dot');
+  const txt = document.getElementById('conn-text');
+
+  if (estado && estado.online === true) {
+    isOnline = true;
+    dot.className = 'dot';
+    txt.textContent = 'Conectado';
+  } else {
+    isOnline = false;
+    dot.className = 'dot offline';
+    const ts = estado && estado.ultimaVez
+      ? new Date(estado.ultimaVez).toLocaleTimeString('es-EC', {hour:'2-digit', minute:'2-digit'})
+      : '—';
+    txt.textContent = 'Offline · ' + ts;
+  }
+});
+
+// ─────────────────────────────────────────────
+// 3. HORARIOS en tiempo real
+//    La app guarda en  comedero/horarios/<id>
+//    El ESP32 escucha  comedero/horarios  y ejecuta cuando corresponde
+// ─────────────────────────────────────────────
+db.ref('comedero/horarios').on('value', snap => {
+  const data = snap.val();
+  if (data) {
+    schedules = Object.values(data).sort((a, b) => a.time.localeCompare(b.time));
+  } else {
+    schedules = [];
+  }
+  renderSchedules();
+});
+
+// ─────────────────────────────────────────────
+// 4. HISTORIAL en tiempo real
+//    El ESP32 debe escribir en  comedero/historial/<timestamp>
+//    cuando ejecuta un horario o una dispensación manual
+//    Estructura: { tipo: 'scheduled'|'manual', gramos: 120, mascota: 'Rocky', timestamp: ... }
+// ─────────────────────────────────────────────
+db.ref('comedero/historial').orderByChild('timestamp').limitToLast(30).on('value', snap => {
+  const data = snap.val();
+  if (data) {
+    const entries = Object.values(data).reverse();
+    history = entries.map(e => {
+      const fecha = new Date(e.timestamp);
+      const hoy = new Date();
+      const ayer = new Date(); ayer.setDate(hoy.getDate() - 1);
+
+      let timeLabel;
+      if (fecha.toDateString() === hoy.toDateString()) {
+        timeLabel = 'Hoy ' + fecha.toLocaleTimeString('es-EC', {hour:'2-digit', minute:'2-digit'});
+      } else if (fecha.toDateString() === ayer.toDateString()) {
+        timeLabel = 'Ayer ' + fecha.toLocaleTimeString('es-EC', {hour:'2-digit', minute:'2-digit'});
+      } else {
+        timeLabel = fecha.toLocaleDateString('es-EC', {day:'2-digit', month:'short'}) + ' ' +
+                    fecha.toLocaleTimeString('es-EC', {hour:'2-digit', minute:'2-digit'});
+      }
+
+      // Calcular gramos de hoy para el contador
+      if (fecha.toDateString() === hoy.toDateString()) {
+        eatenToday += (e.gramos || 0);
+      }
+
+      return {
+        type: e.tipo || 'scheduled',
+        grams: e.gramos || 0,
+        time: timeLabel,
+        pet: e.mascota || currentPet
+      };
+    });
+
+    // Actualizar contador de hoy con datos reales
+    document.getElementById('eaten-today').textContent = 'Hoy: ' + eatenToday + 'g';
+    renderHistory();
+    renderRecentHistory();
+  }
+});
+
+// ─────────────────────────────────────────────
+// 5. GUARDAR HORARIO en Firebase
+//    El ESP32 escucha este nodo y lo procesa automáticamente
+// ─────────────────────────────────────────────
 window.guardarEnFirebase = function(data) {
-  return db.ref('comedero/horarios/' + data.id).set(data);
+  // Guardamos con estructura completa que el ESP32 puede leer directamente
+  return db.ref('comedero/horarios/' + data.id).set({
+    id: data.id,
+    time: data.time,       // "HH:MM"
+    grams: data.grams,
+    days: data.days,       // Array de días: ["L","M","X","J","V","S","D"]
+    enabled: data.enabled
+  });
 };
 </script>
   
