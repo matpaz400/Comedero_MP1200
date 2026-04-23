@@ -984,21 +984,29 @@ function setupDayBtns() {
 }
 
 function saveSchedule() {
-  const newSchedule = { time, grams, days, enabled: true };
-
-if (window.guardarEnFirebase) {
-  window.guardarEnFirebase(newSchedule)
-    .then(() => showToast('✓ Guardado en la nube', 'success'))
-    .catch(() => showToast('Error al guardar', 'error'));
-}
-  
   const time = document.getElementById('modal-time').value;
   const grams = parseInt(document.getElementById('modal-grams').value);
   const days = [...document.querySelectorAll('.day-btn.active')].map(b => b.dataset.day);
-  if (!time || !grams || days.length === 0) { showToast('Completa todos los campos', 'error'); return; }
+
+  if (!time || !grams || days.length === 0) {
+    showToast('Completa todos los campos', 'error');
+    return;
+  }
+
+  const newSchedule = { time, grams, days, enabled: true };
+
+  // 🔥 Firebase
+  if (window.guardarEnFirebase) {
+    window.guardarEnFirebase(newSchedule)
+      .then(() => showToast('✓ Guardado en la nube', 'success'))
+      .catch(() => showToast('Error al guardar', 'error'));
+  }
+
+  // Local
   const newId = Math.max(0, ...schedules.map(s => s.id)) + 1;
   schedules.push({ id: newId, time, grams, days, enabled: true });
   schedules.sort((a,b) => a.time.localeCompare(b.time));
+
   renderSchedules();
   closeModal();
   showToast('✓ Horario guardado', 'success');
@@ -1076,5 +1084,29 @@ window.guardarEnFirebase = function(){
   console.log("🔥 FUNCION OK");
 };
 </script>
+
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyDs4xTL_SHEurv01MJstfA1IeUDJdwnnLY",
+  authDomain: "comedero-iot-7fa48.firebaseapp.com",
+  databaseURL: "https://comedero-iot-7fa48-default-rtdb.firebaseio.com",
+  projectId: "comedero-iot-7fa48"
+};
+
+// iniciar firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+console.log("🔥 Firebase conectado");
+
+// función global
+window.guardarEnFirebase = function(data) {
+  return db.ref('comedero/horarios/' + Date.now()).set(data);
+};
+</script>
+  
 </body>
 </html>
