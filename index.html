@@ -1,58 +1,38 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PawFeeder — Comedero inteligente</title>
-</head>
-
-<body>
-
-<h2>Comedero inteligente</h2>
-
-<!-- BOTÓN DE PRUEBA -->
-<input type="time" id="modal-time">
-<input type="number" id="modal-grams" placeholder="gramos">
-<button onclick="saveSchedule()">Guardar horario</button>
-
-<p id="status"></p>
-
-<!-- ========================= -->
-<!-- TU SCRIPT NORMAL (NO MODULE) -->
-<!-- ========================= -->
+<!-- ===================== TU SCRIPT NORMAL ===================== -->
 <script>
-function showToast(msg) {
-  document.getElementById("status").innerText = msg;
-}
-
 function saveSchedule() {
   const time = document.getElementById('modal-time').value;
   const grams = parseInt(document.getElementById('modal-grams').value);
+  const days = [...document.querySelectorAll('.day-btn.active')].map(b => b.dataset.day);
 
-  if (!time || !grams) {
-    showToast("Completa los datos");
+  if (!time || !grams || days.length === 0) {
+    showToast('Completa todos los campos', 'error');
     return;
   }
 
-  const data = {
-    time: time,
-    grams: grams,
-    enabled: true
-  };
+  const data = { time, grams, days, enabled: true };
 
   if (window.guardarEnFirebase) {
     window.guardarEnFirebase(data)
-      .then(() => showToast("✅ Guardado en Firebase"))
-      .catch(() => showToast("❌ Error al guardar"));
+      .then(() => showToast('✓ Guardado en la nube', 'success'))
+      .catch((e) => {
+        console.error(e);
+        showToast('Error al guardar', 'error');
+      });
   } else {
-    showToast("Firebase no conectado");
+    showToast('Firebase no conectado', 'error');
   }
+
+  // tu lógica original
+  const newId = Math.max(0, ...schedules.map(s => s.id)) + 1;
+  schedules.push({ id: newId, time, grams, days, enabled: true });
+  schedules.sort((a,b) => a.time.localeCompare(b.time));
+  renderSchedules();
+  closeModal();
 }
 </script>
 
-<!-- ========================= -->
-<!-- FIREBASE (MODULE SEPARADO) -->
-<!-- ========================= -->
+<!-- ===================== FIREBASE (SEPARADO) ===================== -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js";
@@ -61,17 +41,16 @@ const firebaseConfig = {
   apiKey: "AIzaSyDs4xTL_SHEurv01MJstfA1IeUDJdwnnLY",
   authDomain: "comedero-iot-7fa48.firebaseapp.com",
   databaseURL: "https://comedero-iot-7fa48-default-rtdb.firebaseio.com/",
-  projectId: "comedero-iot-7fa48",
+  projectId: "comedero-iot-7fa48"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// 👉 función global para usar desde tu otro script
+console.log("Firebase conectado");
+
+// 👇 hacemos accesible desde tu otro script
 window.guardarEnFirebase = function(data) {
   return set(ref(db, 'comedero/horarios/' + Date.now()), data);
-}
+};
 </script>
-
-</body>
-</html>
