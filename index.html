@@ -983,6 +983,14 @@ function setupDayBtns() {
 }
 
 function saveSchedule() {
+  const newSchedule = { time, grams, days, enabled: true };
+
+if (window.guardarEnFirebase) {
+  window.guardarEnFirebase(newSchedule)
+    .then(() => showToast('✓ Guardado en la nube', 'success'))
+    .catch(() => showToast('Error al guardar', 'error'));
+}
+  
   const time = document.getElementById('modal-time').value;
   const grams = parseInt(document.getElementById('modal-grams').value);
   const days = [...document.querySelectorAll('.day-btn.active')].map(b => b.dataset.day);
@@ -1060,5 +1068,26 @@ setInterval(() => {
   }
 }, 3000);
 </script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDs4xTL_SHEurv01MJstfA1IeUDJdwnnLY",
+  authDomain: "comedero-iot-7fa48.firebaseapp.com",
+  databaseURL: "https://comedero-iot-7fa48-default-rtdb.firebaseio.com",
+  projectId: "comedero-iot-7fa48"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// función global
+window.guardarEnFirebase = function(data){
+  return set(ref(db, 'comedero/horarios/' + Date.now()), data);
+};
+</script>
+
+  
 </body>
 </html>
