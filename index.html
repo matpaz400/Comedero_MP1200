@@ -890,9 +890,14 @@ function dispenseBtnHTML(g) {
 
 // ---- Dispense ----
 function dispense(e) {
-  if (!isOnline) { showToast('Sin conexión con el comedero', 'error'); return; }
+  if (!isOnline) { 
+    showToast('Sin conexión con el comedero', 'error'); 
+    return; 
+  }
+
   const btn = document.getElementById('disp-btn');
-  // Ripple
+
+  // 🔥 EFECTO RIPPLE
   const r = document.createElement('span');
   r.className = 'ripple';
   const rect = btn.getBoundingClientRect();
@@ -901,23 +906,44 @@ function dispense(e) {
   btn.appendChild(r);
   setTimeout(() => r.remove(), 600);
 
+  // 🔥 CAMBIO VISUAL A "CARGANDO"
   btn.className = 'dispense-btn loading';
   btn.innerHTML = '<span>Dispensando…</span>';
 
+  // 🔥 ENVÍO A FIREBASE (LO MÁS IMPORTANTE)
+  db.ref('comedero/comando').set({
+    accion: 'dispensar',
+    gramos: selectedGrams,
+    timestamp: Date.now()
+  });
+
+  // 🔥 SIMULACIÓN / FEEDBACK VISUAL
   setTimeout(() => {
-    simulateWeight(selectedGrams);
+    simulateWeight(selectedGrams); // puedes quitar esto cuando ya tengas HX711 real
+
     eatenToday += selectedGrams;
     animateEaten(eatenToday);
-    history.unshift({ type: 'manual', grams: selectedGrams, time: 'Ahora', pet: currentPet });
+
+    history.unshift({ 
+      type: 'manual', 
+      grams: selectedGrams, 
+      time: 'Ahora', 
+      pet: currentPet 
+    });
+
     renderRecentHistory();
     renderHistory();
+
     btn.className = 'dispense-btn success';
     btn.innerHTML = '✓ ¡Listo! Se dispensaron ' + selectedGrams + 'g';
+
     showToast('✓ ' + selectedGrams + 'g dispensados para ' + currentPet, 'success');
+
     setTimeout(() => {
       btn.className = 'dispense-btn';
       btn.innerHTML = dispenseBtnHTML(selectedGrams);
     }, 2500);
+
   }, 1800);
 }
 
