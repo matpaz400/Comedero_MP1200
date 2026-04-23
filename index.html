@@ -995,6 +995,7 @@ function setupDayBtns() {
 }
 
 function saveSchedule() {
+
   const time = document.getElementById('modal-time').value;
   const grams = parseInt(document.getElementById('modal-grams').value);
   const days = [...document.querySelectorAll('.day-btn.active')].map(b => b.dataset.day);
@@ -1004,22 +1005,29 @@ function saveSchedule() {
     return;
   }
 
-  const newSchedule = {id, time, grams, days, enabled: true };
+  const id = Date.now();
 
-  // 🔥 Firebase
-  if (window.guardarEnFirebase) {
-    window.guardarEnFirebase(newSchedule)
-      .then(() => showToast('✓ Guardado en la nube', 'success'))
-      .catch(() => showToast('Error al guardar', 'error'));
-  }
+  const newSchedule = {
+    id,
+    time,
+    grams,
+    days,
+    enabled: true
+  };
 
-  const newId = Math.max(0, ...schedules.map(s => s.id)) + 1;
-  schedules.push({ id: newId, time, grams, days, enabled: true });
-  schedules.sort((a,b) => a.time.localeCompare(b.time));
-
-  renderSchedules();
-  closeModal();
-  showToast('✓ Horario guardado', 'success');
+  // 🔥 guardar en Firebase
+  window.guardarEnFirebase(newSchedule)
+    .then(() => {
+      schedules.push(newSchedule);
+      schedules.sort((a,b) => a.time.localeCompare(b.time));
+      renderSchedules();
+      closeModal();
+      showToast('✓ Horario guardado', 'success');
+    })
+    .catch(err => {
+      console.error(err);
+      showToast('Error al guardar', 'error');
+    });
 }
 
 // ---- History ----
@@ -1103,9 +1111,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 window.guardarEnFirebase = function(data) {
-  const id = Date.now();
-  data.id = id;
-  return db.ref('comedero/horarios/' + id).set(data);
+  return db.ref('comedero/horarios/' + data.id).set(data);
 };
 </script>
   
