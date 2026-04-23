@@ -1,56 +1,224 @@
-<!-- ===================== TU SCRIPT NORMAL ===================== -->
-<script>
-function saveSchedule() {
-  const time = document.getElementById('modal-time').value;
-  const grams = parseInt(document.getElementById('modal-grams').value);
-  const days = [...document.querySelectorAll('.day-btn.active')].map(b => b.dataset.day);
+<!DOCTYPE html>
 
-  if (!time || !grams || days.length === 0) {
-    showToast('Completa todos los campos', 'error');
-    return;
-  }
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PawFeeder</title>
 
-  const data = { time, grams, days, enabled: true };
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono&display=swap" rel="stylesheet">
 
-  if (window.guardarEnFirebase) {
-    window.guardarEnFirebase(data)
-      .then(() => showToast('✓ Guardado en la nube', 'success'))
-      .catch((e) => {
-        console.error(e);
-        showToast('Error al guardar', 'error');
-      });
-  } else {
-    showToast('Firebase no conectado', 'error');
-  }
-
-  // tu lógica original
-  const newId = Math.max(0, ...schedules.map(s => s.id)) + 1;
-  schedules.push({ id: newId, time, grams, days, enabled: true });
-  schedules.sort((a,b) => a.time.localeCompare(b.time));
-  renderSchedules();
-  closeModal();
+<style>
+body{
+  margin:0;
+  background:#0d0f0e;
+  color:#e8ede9;
+  font-family:'Syne',sans-serif;
 }
+
+.app{max-width:420px;margin:auto;padding-bottom:80px}
+
+header{
+  display:flex;
+  justify-content:space-between;
+  padding:20px;
+}
+
+.card{
+  background:#161918;
+  margin:15px;
+  padding:20px;
+  border-radius:16px;
+}
+
+button{
+  cursor:pointer;
+}
+
+/* botón principal */
+.main-btn{
+  width:100%;
+  padding:16px;
+  border:none;
+  border-radius:12px;
+  background:#7FE4A0;
+  font-weight:700;
+}
+
+/* horarios */
+.schedule{
+  display:flex;
+  justify-content:space-between;
+  padding:12px;
+  background:#1e2220;
+  border-radius:10px;
+  margin-bottom:8px;
+}
+
+/* nav */
+.nav{
+  position:fixed;
+  bottom:0;
+  width:100%;
+  max-width:420px;
+  display:flex;
+  background:#111;
+}
+
+.nav button{
+  flex:1;
+  padding:12px;
+  background:none;
+  border:none;
+  color:#aaa;
+}
+
+.nav .active{
+  color:#7FE4A0;
+}
+
+/* modal */
+.modal{
+  position:fixed;
+  bottom:0;
+  width:100%;
+  max-width:420px;
+  background:#161918;
+  padding:20px;
+  display:none;
+}
+
+.modal input{
+  width:100%;
+  margin-bottom:10px;
+  padding:10px;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="app">
+
+<header>
+<h2>PawFeeder</h2>
+<span>🟢 Online</span>
+</header>
+
+<!-- HOME -->
+
+<div id="home">
+
+<div class="card">
+<h3>Dispensar comida</h3>
+<input type="number" id="grams" placeholder="gramos">
+<button class="main-btn" onclick="dispensar()">Dispensar</button>
+</div>
+
+</div>
+
+<!-- HORARIOS -->
+
+<div id="horarios" style="display:none">
+
+<div class="card">
+<h3>Horarios</h3>
+<div id="lista"></div>
+<button onclick="abrirModal()">+ Agregar</button>
+</div>
+
+</div>
+
+</div>
+
+<!-- NAV -->
+
+<div class="nav">
+<button class="active" onclick="cambiar('home',this)">Inicio</button>
+<button onclick="cambiar('horarios',this)">Horarios</button>
+</div>
+
+<!-- MODAL -->
+
+<div class="modal" id="modal">
+<h3>Nuevo horario</h3>
+<input type="time" id="time">
+<input type="number" id="grams2" placeholder="gramos">
+<button onclick="guardar()">Guardar</button>
+<button onclick="cerrar()">Cancelar</button>
+</div>
+
+<script>
+
+// navegación
+function cambiar(v,btn){
+  document.getElementById("home").style.display="none";
+  document.getElementById("horarios").style.display="none";
+  document.getElementById(v).style.display="block";
+
+  document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+}
+
+// modal
+function abrirModal(){document.getElementById("modal").style.display="block";}
+function cerrar(){document.getElementById("modal").style.display="none";}
+
+// UI
+function agregarUI(data){
+  const div=document.createElement("div");
+  div.className="schedule";
+  div.innerHTML=`${data.time} - ${data.grams}g`;
+  document.getElementById("lista").appendChild(div);
+}
+
+// guardar
+function guardar(){
+  const time=document.getElementById("time").value;
+  const grams=document.getElementById("grams2").value;
+
+  if(!time || !grams){alert("completa");return;}
+
+  const data={time,grams};
+
+  if(window.guardarEnFirebase){
+    window.guardarEnFirebase(data)
+    .then(()=>alert("guardado"))
+    .catch(()=>alert("error"));
+  }
+
+  agregarUI(data);
+  cerrar();
+}
+
+// dispensar
+function dispensar(){
+  alert("comida enviada");
+}
+
 </script>
 
-<!-- ===================== FIREBASE (SEPARADO) ===================== -->
+<!-- FIREBASE -->
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDs4xTL_SHEurv01MJstfA1IeUDJdwnnLY",
-  authDomain: "comedero-iot-7fa48.firebaseapp.com",
-  databaseURL: "https://comedero-iot-7fa48-default-rtdb.firebaseio.com/",
-  projectId: "comedero-iot-7fa48"
+  apiKey: "TU_API_KEY",
+  authDomain: "TU_AUTH",
+  databaseURL: "https://TU-PROYECTO-default-rtdb.firebaseio.com",
+  projectId: "TU_ID"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-console.log("Firebase conectado");
-
-// 👇 hacemos accesible desde tu otro script
-window.guardarEnFirebase = function(data) {
-  return set(ref(db, 'comedero/horarios/' + Date.now()), data);
-};
+window.guardarEnFirebase = function(data){
+  return set(ref(db,'comedero/horarios/'+Date.now()),data);
+}
 </script>
+
+</body>
+</html>
