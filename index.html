@@ -1,1 +1,1064 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PawFeeder — Comedero inteligente</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f0e;
+    --surface: #161918;
+    --surface2: #1e2220;
+    --border: #2a2f2c;
+    --accent: #7FE4A0;
+    --accent2: #4ecb72;
+    --warn: #F4A742;
+    --danger: #f06060;
+    --text: #e8ede9;
+    --text2: #8a9a8d;
+    --text3: #4a5c4d;
+    --font: 'Syne', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
 
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* ---- Layout ---- */
+  .app { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; padding: 0 0 120px; }
+
+  /* ---- Header ---- */
+  header {
+    padding: 32px 24px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo-name {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+  .logo-name span { color: var(--accent); }
+  .status-dot {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+  }
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .dot.offline { background: var(--danger); animation: none; }
+  @keyframes pulse {
+    0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(127,228,160,0.4); }
+    50% { opacity: 0.8; box-shadow: 0 0 0 5px rgba(127,228,160,0); }
+  }
+
+  /* ---- Pet selector ---- */
+  .pet-bar {
+    padding: 0 24px 20px;
+    display: flex;
+    gap: 10px;
+  }
+  .pet-chip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    border-radius: 100px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .pet-chip.active {
+    border-color: var(--accent);
+    background: rgba(127,228,160,0.08);
+    color: var(--accent);
+  }
+  .pet-chip:hover:not(.active) { border-color: var(--text3); color: var(--text); }
+
+  /* ---- Hero weight card ---- */
+  .weight-card {
+    margin: 0 16px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .weight-card::after {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 160px; height: 160px;
+    background: radial-gradient(circle, rgba(127,228,160,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .weight-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .weight-display {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .weight-value {
+    font-size: 72px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -3px;
+    color: var(--text);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .weight-unit {
+    font-family: var(--mono);
+    font-size: 22px;
+    color: var(--text2);
+    font-weight: 300;
+  }
+  .weight-target {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text3);
+    margin-bottom: 16px;
+  }
+  .weight-target span { color: var(--accent); }
+
+  /* Progress bar */
+  .progress-track {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 100px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 100px;
+    background: var(--accent);
+    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+  }
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 20px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,0.3));
+    border-radius: 100px;
+  }
+  .progress-fill.warning { background: var(--warn); }
+  .progress-fill.full { background: var(--accent2); }
+
+  .weight-meta {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+  }
+  .weight-meta .ate {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* ---- Dispense button ---- */
+  .dispense-section {
+    margin: 0 16px 16px;
+  }
+  .dispense-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    padding: 0 4px;
+  }
+  .gram-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .gram-btn {
+    flex: 1;
+    padding: 10px 0;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .gram-btn.active {
+    border-color: var(--accent);
+    background: rgba(127,228,160,0.1);
+    color: var(--accent);
+  }
+  .gram-btn:hover:not(.active) { border-color: var(--text3); color: var(--text); }
+
+  .custom-gram {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .custom-gram input {
+    flex: 1;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .custom-gram input:focus { border-color: var(--accent); }
+  .custom-gram input::placeholder { color: var(--text3); }
+  .custom-gram label {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  .dispense-btn {
+    width: 100%;
+    padding: 18px;
+    border-radius: 14px;
+    border: none;
+    background: var(--accent);
+    color: #0d0f0e;
+    font-family: var(--font);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: -0.2px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .dispense-btn:hover { background: var(--accent2); transform: translateY(-1px); }
+  .dispense-btn:active { transform: translateY(1px); }
+  .dispense-btn.loading { background: var(--surface2); color: var(--text3); pointer-events: none; }
+  .dispense-btn.success { background: var(--accent2); }
+  .dispense-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.15), transparent);
+    pointer-events: none;
+  }
+
+  /* ripple */
+  .ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.2);
+    transform: scale(0);
+    animation: ripple-anim 0.5s linear;
+    pointer-events: none;
+  }
+  @keyframes ripple-anim {
+    to { transform: scale(4); opacity: 0; }
+  }
+
+  /* ---- Schedules ---- */
+  .section {
+    margin: 0 16px 16px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding: 0 4px;
+  }
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text2);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-family: var(--mono);
+  }
+  .add-btn {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .schedule-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .schedule-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: border-color 0.2s;
+    animation: slideIn 0.3s ease both;
+  }
+  .schedule-item:hover { border-color: var(--text3); }
+  .schedule-item.active-now { border-color: rgba(127,228,160,0.3); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .schedule-time {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    min-width: 72px;
+    color: var(--text);
+  }
+  .schedule-time.inactive { color: var(--text3); }
+
+  .schedule-info { flex: 1; }
+  .schedule-grams {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .schedule-days {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+  .schedule-next {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 4px;
+    display: inline-block;
+  }
+  .schedule-next.soon { color: var(--warn); }
+
+  .toggle-switch {
+    position: relative;
+    width: 40px; height: 22px;
+    flex-shrink: 0;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-track2 {
+    position: absolute;
+    inset: 0;
+    background: var(--surface2);
+    border-radius: 100px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border: 1px solid var(--border);
+  }
+  .toggle-track2::after {
+    content: '';
+    position: absolute;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--text3);
+    top: 2px; left: 2px;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .toggle-switch input:checked + .toggle-track2 { background: rgba(127,228,160,0.15); border-color: rgba(127,228,160,0.3); }
+  .toggle-switch input:checked + .toggle-track2::after { transform: translateX(18px); background: var(--accent); }
+
+  .del-btn {
+    background: none; border: none;
+    color: var(--text3);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    transition: color 0.15s;
+    line-height: 1;
+  }
+  .del-btn:hover { color: var(--danger); }
+
+  /* ---- Add schedule modal ---- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    padding: 24px;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+  .modal-title { font-size: 18px; font-weight: 800; margin-bottom: 20px; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-family: var(--mono); font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; display: block; }
+  .form-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.15s;
+    appearance: none;
+  }
+  .form-input:focus { border-color: var(--accent); }
+
+  .days-selector { display: flex; gap: 6px; }
+  .day-btn {
+    flex: 1;
+    padding: 8px 0;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .day-btn.active { border-color: var(--accent); background: rgba(127,228,160,0.1); color: var(--accent); }
+
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .btn-cancel {
+    flex: 1;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-family: var(--font);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-cancel:hover { border-color: var(--text2); }
+  .btn-save {
+    flex: 2;
+    padding: 14px;
+    border-radius: 12px;
+    border: none;
+    background: var(--accent);
+    color: #0d0f0e;
+    font-family: var(--font);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-save:hover { background: var(--accent2); }
+
+  /* ---- History ---- */
+  .history-list { display: flex; flex-direction: column; gap: 6px; }
+  .history-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .history-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--surface2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .history-icon.manual { background: rgba(127,228,160,0.1); }
+  .history-icon.scheduled { background: rgba(78,203,114,0.08); }
+  .history-desc { flex: 1; }
+  .history-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .history-time { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .history-grams { font-family: var(--mono); font-size: 13px; color: var(--accent); font-weight: 500; }
+
+  /* ---- Bottom nav ---- */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    max-width: 480px;
+    margin: 0 auto;
+    background: rgba(13,15,14,0.85);
+    backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border);
+    display: flex;
+    padding: 10px 0 20px;
+    z-index: 50;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 0;
+    cursor: pointer;
+    transition: color 0.15s;
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 10px;
+    border: none;
+    background: none;
+  }
+  .nav-item.active { color: var(--accent); }
+  .nav-item svg { width: 20px; height: 20px; }
+  .nav-dot {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+    margin-top: 2px;
+  }
+  .nav-item.active .nav-dot { opacity: 1; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 10px 20px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    pointer-events: none;
+    z-index: 200;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: rgba(127,228,160,0.3); color: var(--accent); }
+  .toast.error { border-color: rgba(240,96,96,0.3); color: var(--danger); }
+
+  /* Sections visibility */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 32px 0;
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .empty-state .icon { font-size: 32px; margin-bottom: 10px; }
+
+  /* Responsive */
+  @media (min-width: 480px) {
+    .bottom-nav { left: 50%; transform: translateX(-50%); width: 480px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🐾</div>
+      <div class="logo-name">Paw<span>Feeder</span></div>
+    </div>
+    <div class="status-dot">
+      <div class="dot" id="conn-dot"></div>
+      <span id="conn-text">Conectado</span>
+    </div>
+  </header>
+
+  <!-- Pet selector -->
+  <div class="pet-bar">
+    <button class="pet-chip active" onclick="selectPet(this, 'Rocky')">🐕 Rocky</button>
+    <button class="pet-chip" onclick="selectPet(this, 'Luna')">🐩 Luna</button>
+  </div>
+
+  <!-- === VIEW: HOME === -->
+  <div class="view active" id="view-home">
+
+    <!-- Weight card -->
+    <div class="weight-card">
+      <div class="weight-label">Peso en el plato</div>
+      <div class="weight-display">
+        <div class="weight-value" id="weight-val">0</div>
+        <div class="weight-unit">g</div>
+      </div>
+      <div class="weight-target">Objetivo: <span id="target-val">150</span>g</div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-bar" style="width:0%"></div>
+      </div>
+      <div class="weight-meta">
+        <span id="weight-status">Plato vacío — listo</span>
+        <span class="ate" id="eaten-today">Hoy: 0g</span>
+      </div>
+    </div>
+
+    <!-- Dispense -->
+    <div class="dispense-section">
+      <div class="dispense-label">Dispensar ahora</div>
+      <div class="gram-selector">
+        <button class="gram-btn active" onclick="selectGrams(this, 50)">50g</button>
+        <button class="gram-btn" onclick="selectGrams(this, 100)">100g</button>
+        <button class="gram-btn" onclick="selectGrams(this, 150)">150g</button>
+        <button class="gram-btn" onclick="selectGrams(this, 200)">200g</button>
+      </div>
+      <div class="custom-gram">
+        <input type="number" id="custom-g" placeholder="Personalizado" min="10" max="500" oninput="customGrams(this)">
+        <label>gramos</label>
+      </div>
+      <button class="dispense-btn" id="disp-btn" onclick="dispense(event)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M12 2l-3 3M12 2l3 3"/><path d="M3 10h18l-2 10H5L3 10z"/></svg>
+        Dispensar 50g
+      </button>
+    </div>
+
+    <!-- Last dispensed -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Último registro</span>
+      </div>
+      <div class="history-list" id="recent-history"></div>
+    </div>
+
+  </div>
+
+  <!-- === VIEW: SCHEDULES === -->
+  <div class="view" id="view-schedules">
+    <div class="section" style="margin-top:8px">
+      <div class="section-header">
+        <span class="section-title">Horarios automáticos</span>
+        <button class="add-btn" onclick="openModal()">+</button>
+      </div>
+      <div class="schedule-list" id="schedule-list"></div>
+    </div>
+  </div>
+
+  <!-- === VIEW: HISTORY === -->
+  <div class="view" id="view-history">
+    <div class="section" style="margin-top:8px">
+      <div class="section-header">
+        <span class="section-title">Historial completo</span>
+      </div>
+      <div class="history-list" id="full-history"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <button class="nav-item active" onclick="showView('home', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Inicio
+    <div class="nav-dot"></div>
+  </button>
+  <button class="nav-item" onclick="showView('schedules', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Horarios
+    <div class="nav-dot"></div>
+  </button>
+  <button class="nav-item" onclick="showView('history', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Historial
+    <div class="nav-dot"></div>
+  </button>
+</nav>
+
+<!-- Add Schedule Modal -->
+<div class="modal-overlay" id="modal" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nuevo horario</div>
+
+    <div class="form-group">
+      <label class="form-label">Hora</label>
+      <input type="time" class="form-input" id="modal-time" value="08:00">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Cantidad</label>
+      <input type="number" class="form-input" id="modal-grams" placeholder="150" min="10" max="500" value="150">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Días</label>
+      <div class="days-selector">
+        <button class="day-btn active" data-day="L">L</button>
+        <button class="day-btn active" data-day="M">M</button>
+        <button class="day-btn active" data-day="X">X</button>
+        <button class="day-btn active" data-day="J">J</button>
+        <button class="day-btn active" data-day="V">V</button>
+        <button class="day-btn active" data-day="S">S</button>
+        <button class="day-btn active" data-day="D">D</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveSchedule()">Guardar horario</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- State ----
+let selectedGrams = 50;
+let currentPet = 'Rocky';
+let currentWeight = 0;
+let targetWeight = 150;
+let eatenToday = 0;
+let isOnline = true;
+
+let schedules = [
+  { id: 1, time: '07:30', grams: 120, days: ['L','M','X','J','V','S','D'], enabled: true },
+  { id: 2, time: '13:00', grams: 80,  days: ['L','M','X','J','V'],         enabled: true },
+  { id: 3, time: '19:00', grams: 150, days: ['L','M','X','J','V','S','D'], enabled: false },
+];
+
+let history = [
+  { type: 'scheduled', grams: 120, time: 'Hoy 07:30', pet: 'Rocky' },
+  { type: 'manual',    grams: 50,  time: 'Hoy 10:15', pet: 'Rocky' },
+  { type: 'scheduled', grams: 80,  time: 'Ayer 13:00', pet: 'Rocky' },
+  { type: 'scheduled', grams: 120, time: 'Ayer 07:30', pet: 'Rocky' },
+  { type: 'manual',    grams: 100, time: 'Ayer 16:45', pet: 'Luna'  },
+];
+
+// ---- Init ----
+window.addEventListener('DOMContentLoaded', () => {
+  renderSchedules();
+  renderHistory();
+  renderRecentHistory();
+  simulateWeight(0);
+  animateEaten(320);
+  setupDayBtns();
+});
+
+// ---- Pet selector ----
+function selectPet(el, pet) {
+  document.querySelectorAll('.pet-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentPet = pet;
+  showToast('🐾 ' + pet + ' seleccionado', 'success');
+}
+
+// ---- Weight simulation ----
+function simulateWeight(target) {
+  const el = document.getElementById('weight-val');
+  const bar = document.getElementById('progress-bar');
+  const status = document.getElementById('weight-status');
+  let val = currentWeight;
+  const step = (target - val) / 20;
+  const interval = setInterval(() => {
+    val += step;
+    if (Math.abs(val - target) < 1) { val = target; clearInterval(interval); }
+    currentWeight = Math.round(val);
+    el.textContent = currentWeight;
+    const pct = Math.min((currentWeight / targetWeight) * 100, 100);
+    bar.style.width = pct + '%';
+    bar.className = 'progress-fill' + (pct >= 100 ? ' full' : pct > 70 ? '' : ' warning');
+    if (currentWeight === 0) status.textContent = 'Plato vacío — listo';
+    else if (pct >= 100) status.textContent = '¡Plato lleno!';
+    else status.textContent = Math.round(pct) + '% del objetivo';
+  }, 30);
+}
+
+function animateEaten(total) {
+  const el = document.getElementById('eaten-today');
+  let v = 0;
+  const interval = setInterval(() => {
+    v += 8;
+    if (v >= total) { v = total; clearInterval(interval); }
+    eatenToday = v;
+    el.textContent = 'Hoy: ' + v + 'g';
+  }, 16);
+}
+
+// ---- Gram selector ----
+function selectGrams(el, grams) {
+  document.querySelectorAll('.gram-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('custom-g').value = '';
+  selectedGrams = grams;
+  document.getElementById('disp-btn').innerHTML = dispenseBtnHTML(grams);
+}
+
+function customGrams(el) {
+  const v = parseInt(el.value);
+  if (v > 0) {
+    document.querySelectorAll('.gram-btn').forEach(b => b.classList.remove('active'));
+    selectedGrams = v;
+    document.getElementById('disp-btn').innerHTML = dispenseBtnHTML(v);
+  }
+}
+
+function dispenseBtnHTML(g) {
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M12 2l-3 3M12 2l3 3"/><path d="M3 10h18l-2 10H5L3 10z"/></svg> Dispensar ${g}g`;
+}
+
+// ---- Dispense ----
+function dispense(e) {
+  if (!isOnline) { showToast('Sin conexión con el comedero', 'error'); return; }
+  const btn = document.getElementById('disp-btn');
+  // Ripple
+  const r = document.createElement('span');
+  r.className = 'ripple';
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height) * 1.2;
+  r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
+  btn.appendChild(r);
+  setTimeout(() => r.remove(), 600);
+
+  btn.className = 'dispense-btn loading';
+  btn.innerHTML = '<span>Dispensando…</span>';
+
+  setTimeout(() => {
+    simulateWeight(selectedGrams);
+    eatenToday += selectedGrams;
+    animateEaten(eatenToday);
+    history.unshift({ type: 'manual', grams: selectedGrams, time: 'Ahora', pet: currentPet });
+    renderRecentHistory();
+    renderHistory();
+    btn.className = 'dispense-btn success';
+    btn.innerHTML = '✓ ¡Listo! Se dispensaron ' + selectedGrams + 'g';
+    showToast('✓ ' + selectedGrams + 'g dispensados para ' + currentPet, 'success');
+    setTimeout(() => {
+      btn.className = 'dispense-btn';
+      btn.innerHTML = dispenseBtnHTML(selectedGrams);
+    }, 2500);
+  }, 1800);
+}
+
+// ---- Schedules ----
+function renderSchedules() {
+  const list = document.getElementById('schedule-list');
+  if (schedules.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">⏰</div>No hay horarios aún</div>';
+    return;
+  }
+  const now = new Date();
+  const nowMins = now.getHours()*60 + now.getMinutes();
+  list.innerHTML = schedules.map((s, i) => {
+    const [h,m] = s.time.split(':').map(Number);
+    const sMins = h*60+m;
+    const diffMins = sMins - nowMins;
+    let nextLabel = '';
+    if (s.enabled) {
+      if (diffMins > 0 && diffMins <= 60) nextLabel = `<span class="schedule-next soon">en ${diffMins} min</span>`;
+      else if (diffMins > 0) nextLabel = `<span class="schedule-next">en ${Math.floor(diffMins/60)}h ${diffMins%60}m</span>`;
+      else nextLabel = `<span class="schedule-next">mañana</span>`;
+    }
+    return `
+    <div class="schedule-item ${s.enabled ? '' : ''}" style="animation-delay:${i*0.06}s">
+      <div class="schedule-time ${s.enabled ? '' : 'inactive'}">${s.time}</div>
+      <div class="schedule-info">
+        <div class="schedule-grams">${s.grams}g</div>
+        <div class="schedule-days">${s.days.join(' · ')}</div>
+        ${nextLabel}
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleSchedule(${s.id})">
+        <span class="toggle-track2"></span>
+      </label>
+      <button class="del-btn" onclick="deleteSchedule(${s.id})">×</button>
+    </div>`;
+  }).join('');
+}
+
+function toggleSchedule(id) {
+  const s = schedules.find(s => s.id === id);
+  if (s) { s.enabled = !s.enabled; renderSchedules(); showToast(s.enabled ? '⏰ Horario activado' : '⏸ Horario pausado'); }
+}
+
+function deleteSchedule(id) {
+  schedules = schedules.filter(s => s.id !== id);
+  renderSchedules();
+  showToast('Horario eliminado', 'error');
+}
+
+// ---- Modal ----
+function openModal() {
+  document.getElementById('modal').classList.add('open');
+  document.querySelectorAll('.day-btn').forEach(b => b.classList.add('active'));
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target === document.getElementById('modal')) closeModal(); }
+
+function setupDayBtns() {
+  document.querySelectorAll('.day-btn').forEach(btn => {
+    btn.addEventListener('click', () => btn.classList.toggle('active'));
+  });
+}
+
+function saveSchedule() {
+  const time = document.getElementById('modal-time').value;
+  const grams = parseInt(document.getElementById('modal-grams').value);
+  const days = [...document.querySelectorAll('.day-btn.active')].map(b => b.dataset.day);
+  if (!time || !grams || days.length === 0) { showToast('Completa todos los campos', 'error'); return; }
+  const newId = Math.max(0, ...schedules.map(s => s.id)) + 1;
+  schedules.push({ id: newId, time, grams, days, enabled: true });
+  schedules.sort((a,b) => a.time.localeCompare(b.time));
+  renderSchedules();
+  closeModal();
+  showToast('✓ Horario guardado', 'success');
+}
+
+// ---- History ----
+function renderHistory() {
+  const icons = { manual: { icon: '👆', cls: 'manual' }, scheduled: { icon: '⏰', cls: 'scheduled' } };
+  const html = history.map(h => {
+    const ic = icons[h.type];
+    return `<div class="history-item">
+      <div class="history-icon ${ic.cls}">${ic.icon}</div>
+      <div class="history-desc">
+        <div class="history-title">${h.type === 'manual' ? 'Manual' : 'Automático'} · ${h.pet}</div>
+        <div class="history-time">${h.time}</div>
+      </div>
+      <div class="history-grams">${h.grams}g</div>
+    </div>`;
+  }).join('');
+  document.getElementById('full-history').innerHTML = html;
+}
+
+function renderRecentHistory() {
+  const recent = history.slice(0,2);
+  const icons = { manual: { icon: '👆', cls: 'manual' }, scheduled: { icon: '⏰', cls: 'scheduled' } };
+  document.getElementById('recent-history').innerHTML = recent.map(h => {
+    const ic = icons[h.type];
+    return `<div class="history-item">
+      <div class="history-icon ${ic.cls}">${ic.icon}</div>
+      <div class="history-desc">
+        <div class="history-title">${h.type === 'manual' ? 'Manual' : 'Automático'} · ${h.pet}</div>
+        <div class="history-time">${h.time}</div>
+      </div>
+      <div class="history-grams">${h.grams}g</div>
+    </div>`;
+  }).join('');
+}
+
+// ---- Navigation ----
+function showView(name, el) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  el.classList.add('active');
+}
+
+// ---- Toast ----
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = 'toast', 2800);
+}
+
+// ---- Simulate live weight changes ----
+setInterval(() => {
+  if (currentWeight > 5) {
+    currentWeight = Math.max(0, currentWeight - Math.floor(Math.random()*3));
+    document.getElementById('weight-val').textContent = currentWeight;
+    const pct = Math.min((currentWeight / targetWeight) * 100, 100);
+    const bar = document.getElementById('progress-bar');
+    bar.style.width = pct + '%';
+    bar.className = 'progress-fill' + (pct >= 100 ? ' full' : pct > 70 ? '' : ' warning');
+    const status = document.getElementById('weight-status');
+    if (currentWeight === 0) status.textContent = 'Plato vacío — listo';
+    else status.textContent = Math.round(pct) + '% del objetivo';
+  }
+}, 3000);
+</script>
+</body>
+</html>
