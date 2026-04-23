@@ -959,13 +959,25 @@ function renderSchedules() {
 
 function toggleSchedule(id) {
   const s = schedules.find(s => s.id === id);
-  if (s) { s.enabled = !s.enabled; renderSchedules(); showToast(s.enabled ? '⏰ Horario activado' : '⏸ Horario pausado'); }
+  if (!s) return;
+
+  s.enabled = !s.enabled;
+
+  // 🔥 actualizar en Firebase
+  db.ref('comedero/horarios/' + id).update({
+    enabled: s.enabled
+  });
+
+  renderSchedules();
 }
 
 function deleteSchedule(id) {
   schedules = schedules.filter(s => s.id !== id);
+
+  // 🔥 borrar en Firebase
+  db.ref('comedero/horarios/' + id).remove();
+
   renderSchedules();
-  showToast('Horario eliminado', 'error');
 }
 
 // ---- Modal ----
@@ -992,7 +1004,7 @@ function saveSchedule() {
     return;
   }
 
-  const newSchedule = { time, grams, days, enabled: true };
+  const newSchedule = {id, time, grams, days, enabled: true };
 
   // 🔥 Firebase
   if (window.guardarEnFirebase) {
@@ -1091,7 +1103,9 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 window.guardarEnFirebase = function(data) {
-  return db.ref('comedero/horarios/' + Date.now()).set(data);
+  const id = Date.now();
+  data.id = id;
+  return db.ref('comedero/horarios/' + id).set(data);
 };
 </script>
   
