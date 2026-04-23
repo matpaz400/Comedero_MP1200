@@ -834,26 +834,8 @@ function selectPet(el, pet) {
   showToast('🐾 ' + pet + ' seleccionado', 'success');
 }
 
-// ---- Weight simulation ----
-function simulateWeight(target) {
-  const el = document.getElementById('weight-val');
-  const bar = document.getElementById('progress-bar');
-  const status = document.getElementById('weight-status');
-  let val = currentWeight;
-  const step = (target - val) / 20;
-  const interval = setInterval(() => {
-    val += step;
-    if (Math.abs(val - target) < 1) { val = target; clearInterval(interval); }
-    currentWeight = Math.round(val);
-    el.textContent = currentWeight;
-    const pct = Math.min((currentWeight / targetWeight) * 100, 100);
-    bar.style.width = pct + '%';
-    bar.className = 'progress-fill' + (pct >= 100 ? ' full' : pct > 70 ? '' : ' warning');
-    if (currentWeight === 0) status.textContent = 'Plato vacío — listo';
-    else if (pct >= 100) status.textContent = '¡Plato lleno!';
-    else status.textContent = Math.round(pct) + '% del objetivo';
-  }, 30);
-}
+
+
 
 function animateEaten(total) {
   const el = document.getElementById('eaten-today');
@@ -919,8 +901,6 @@ function dispense(e) {
 
   // 🔥 SIMULACIÓN / FEEDBACK VISUAL
   setTimeout(() => {
-    simulateWeight(selectedGrams); // puedes quitar esto cuando ya tengas HX711 real
-
     eatenToday += selectedGrams;
     animateEaten(eatenToday);
 
@@ -1106,20 +1086,7 @@ function showToast(msg, type = '') {
   t._timer = setTimeout(() => t.className = 'toast', 2800);
 }
 
-// ---- Simulate live weight changes ----
-setInterval(() => {
-  if (currentWeight > 5) {
-    currentWeight = Math.max(0, currentWeight - Math.floor(Math.random()*3));
-    document.getElementById('weight-val').textContent = currentWeight;
-    const pct = Math.min((currentWeight / targetWeight) * 100, 100);
-    const bar = document.getElementById('progress-bar');
-    bar.style.width = pct + '%';
-    bar.className = 'progress-fill' + (pct >= 100 ? ' full' : pct > 70 ? '' : ' warning');
-    const status = document.getElementById('weight-status');
-    if (currentWeight === 0) status.textContent = 'Plato vacío — listo';
-    else status.textContent = Math.round(pct) + '% del objetivo';
-  }
-}, 3000);
+
 </script>
 
 <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
@@ -1138,7 +1105,39 @@ const db = firebase.database();
 
 window.guardarEnFirebase = function(data) {
   return db.ref('comedero/horarios/' + data.id).set(data);
-};
+
+// 🔥 ESCUCHAR PESO EN TIEMPO REAL
+db.ref('comedero/peso').on('value', snapshot => {
+  const peso = snapshot.val();
+
+  if (peso !== null) {
+    currentWeight = peso;
+
+    // número grande
+    document.getElementById('weight-val').textContent = peso;
+
+    // barra de progreso
+    const pct = Math.min((peso / targetWeight) * 100, 100);
+    const bar = document.getElementById('progress-bar');
+
+    bar.style.width = pct + '%';
+    bar.className = 'progress-fill' + 
+      (pct >= 100 ? ' full' : pct > 70 ? '' : ' warning');
+
+    // estado
+    const status = document.getElementById('weight-status');
+
+    if (peso === 0) {
+      status.textContent = 'Plato vacío — listo';
+    } else if (pct >= 100) {
+      status.textContent = '¡Plato lleno!';
+    } else {
+      status.textContent = Math.round(pct) + '% del objetivo';
+    }
+  }
+});
+
+  
 </script>
   
 </body>
