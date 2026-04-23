@@ -1106,35 +1106,40 @@ const db = firebase.database();
 window.guardarEnFirebase = function(data) {
   return db.ref('comedero/horarios/' + data.id).set(data);
 
-// 🔥 ESCUCHAR PESO EN TIEMPO REAL
-db.ref('comedero/peso').on('value', snapshot => {
-  const peso = snapshot.val();
+// 🔥 ESCUCHAR PESO EN TIEMPO REAL (VERSIÓN SEGURA)
+try {
+  db.ref('comedero/peso').on('value', snapshot => {
+    const peso = snapshot.val();
 
-  if (peso !== null) {
-    currentWeight = peso;
+    if (peso !== null && !isNaN(peso)) {
+      currentWeight = peso;
 
-    // número grande
-    document.getElementById('weight-val').textContent = peso;
+      const weightEl = document.getElementById('weight-val');
+      const bar = document.getElementById('progress-bar');
+      const status = document.getElementById('weight-status');
 
-    // barra de progreso
-    const pct = Math.min((peso / targetWeight) * 100, 100);
-    const bar = document.getElementById('progress-bar');
+      if (!weightEl || !bar || !status) return; // evita romper la app
 
-    bar.style.width = pct + '%';
-    bar.className = 'progress-fill' + 
-      (pct >= 100 ? ' full' : pct > 70 ? '' : ' warning');
+      weightEl.textContent = peso;
 
-    // estado
-    const status = document.getElementById('weight-status');
+      const pct = Math.min((peso / targetWeight) * 100, 100);
 
-    if (peso === 0) {
-      status.textContent = 'Plato vacío — listo';
-    } else if (pct >= 100) {
-      status.textContent = '¡Plato lleno!';
-    } else {
-      status.textContent = Math.round(pct) + '% del objetivo';
+      bar.style.width = pct + '%';
+      bar.className = 'progress-fill' + 
+        (pct >= 100 ? ' full' : pct > 70 ? '' : ' warning');
+
+      if (peso === 0) {
+        status.textContent = 'Plato vacío — listo';
+      } else if (pct >= 100) {
+        status.textContent = '¡Plato lleno!';
+      } else {
+        status.textContent = Math.round(pct) + '% del objetivo';
+      }
     }
-  }
+  });
+} catch (e) {
+  console.error('Error leyendo peso:', e);
+}
 });
 
   
