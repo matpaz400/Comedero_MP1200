@@ -1068,10 +1068,11 @@ setInterval(() => {
   }
 }, 3000);
 </script>
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
-import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js";
 
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyDs4xTL_SHEurv01MJstfA1IeUDJdwnnLY",
   authDomain: "comedero-iot-7fa48.firebaseapp.com",
@@ -1079,15 +1080,17 @@ const firebaseConfig = {
   projectId: "comedero-iot-7fa48"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+// iniciar firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+console.log("🔥 Firebase conectado");
 
 // función global
-window.guardarEnFirebase = function(data){
-  return set(ref(db, 'comedero/horarios/' + Date.now()), data);
+window.guardarEnFirebase = function(data) {
+  return db.ref('comedero/horarios/' + Date.now()).set(data);
 };
 </script>
-
   
 </body>
 </html>
